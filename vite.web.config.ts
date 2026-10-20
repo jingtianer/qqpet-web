@@ -5,6 +5,43 @@ import { defineConfig, normalizePath, loadEnv, type Plugin } from 'vite'
 import { viteStaticCopy } from 'vite-plugin-static-copy'
 import { ruffleSafari14 } from './scripts/ruffle-vite'
 import { appVersion } from './scripts/app-version'
+import fs from 'node:fs';
+import path from 'node:path';
+
+function createDataSymlink(projectRoot) {
+    const absTarget = path.resolve(projectRoot, 'resources/pet/petsoc/Data');
+    const absLink = path.resolve(projectRoot, 'resources/pet/petsoc/data');
+
+    let stat;
+    try {
+        stat = fs.lstatSync(absLink);
+    } catch {
+        stat = null;
+    }
+    if (stat) {
+        if (stat.isSymbolicLink()) {
+            fs.unlinkSync(absLink);
+        } else {
+            throw new Error(`路径已存在且不是软链接：${absLink}`);
+        }
+    }
+
+    console.log('ln -s ' + absTarget + " " + absLink);
+    try {
+        if (process.platform === 'win32') {
+            try {
+                fs.symlinkSync(absTarget, absLink, 'junction');
+            } catch (e) {
+                fs.symlinkSync(absTarget, absLink, 'dir');
+            }
+        } else {
+            fs.symlinkSync(absTarget, absLink);
+        }
+    } catch (e) {
+        console.error('createDataSymlink: ', e)
+    }
+}
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '');
 
@@ -13,7 +50,7 @@ export default defineConfig(({ mode }) => {
     const outDir = resolve(outputDirEnv) || resolve(projectRoot, 'out')
     const petSourceDir = resolve(projectRoot, 'resources/pet')
     const petOutDir = resolve(outDir, 'pet')
-
+    createDataSymlink(projectRoot)
     function copyPetResources(): Plugin {
         return {
             name: 'copy-pet-resources',
